@@ -1,0 +1,102 @@
+Iniciando Demo Lavapipe (Rust + WGPU)...
+warning: unused import: `fs`
+ --> build.rs:1:16
+  |
+1 | use std::{env, fs, path::PathBuf, process::Command};
+  |                ^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `lavapipe_demo` (build script) generated 1 warning
+   Compiling lavapipe_demo v0.1.0 (/home/jadson/Documentos/gamecpu/lavapipe_demo)
+warning: unused imports: `TranscodeParameters`, `TranscoderTextureFormat`, and `Transcoder`
+  --> src/main.rs:14:23
+   |
+14 | use basis_universal::{Transcoder, TranscoderTextureFormat, TranscodeParameters};
+   |                       ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: use of deprecated type alias `wgpu::ImageCopyTexture`: This has been renamed to `TexelCopyTextureInfo`, and will be removed in 25.0.0.
+   --> src/main.rs:126:31
+    |
+126 |     queue.write_texture(wgpu::ImageCopyTexture { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+    |                               ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+   --> src/main.rs:127:22
+    |
+127 |         &data, wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) }, size);
+    |                      ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyTexture`: This has been renamed to `TexelCopyTextureInfo`, and will be removed in 25.0.0.
+   --> src/main.rs:149:31
+    |
+149 |     queue.write_texture(wgpu::ImageCopyTexture { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+    |                               ^^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+   --> src/main.rs:150:22
+    |
+150 |         &data, wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) }, size);
+    |                      ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyTexture`: This has been renamed to `TexelCopyTextureInfo`, and will be removed in 25.0.0.
+   --> src/main.rs:171:31
+    |
+171 |     queue.write_texture(wgpu::ImageCopyTexture { texture: &tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+    |                               ^^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+   --> src/main.rs:172:22
+    |
+172 |         &data, wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) }, size);
+    |                      ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyBuffer`: This has been renamed to `TexelCopyBufferInfo`, and will be removed in 25.0.0.
+   --> src/main.rs:495:19
+    |
+495 | ...   wgpu::ImageCopyBuffer { buffer: &self.color_buf, layout: wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(self.g...
+    |             ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageDataLayout`: This has been renamed to `TexelCopyBufferLayout`, and will be removed in 25.0.0.
+   --> src/main.rs:495:76
+    |
+495 | ...   wgpu::ImageCopyBuffer { buffer: &self.color_buf, layout: wgpu::ImageDataLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(self.g...
+    |                                                                      ^^^^^^^^^^^^^^^
+
+warning: use of deprecated type alias `wgpu::ImageCopyTexture`: This has been renamed to `TexelCopyTextureInfo`, and will be removed in 25.0.0.
+   --> src/main.rs:496:19
+    |
+496 |             wgpu::ImageCopyTexture { texture: &frame.texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+    |                   ^^^^^^^^^^^^^^^^
+
+warning: field `texture` is never read
+  --> src/main.rs:90:5
+   |
+67 | struct Gpu {
+   |        --- field in this struct
+...
+90 |     texture: wgpu::Texture,
+   |     ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `create_gradient_texture` is never used
+   --> src/main.rs:132:4
+    |
+132 | fn create_gradient_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> (wgpu::Texture, wgpu::TextureView) {
+    |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_checkerboard` is never used
+   --> src/main.rs:155:4
+    |
+155 | fn create_checkerboard(device: &wgpu::Device, queue: &wgpu::Queue, c1: [u8; 4], c2: [u8; 4]) -> (wgpu::Texture, wgpu::TextureView) {
+    |    ^^^^^^^^^^^^^^^^^^^
+
+warning: `lavapipe_demo` (bin "lavapipe_demo") generated 13 warnings (run `cargo fix --bin "lavapipe_demo" -p lavapipe_demo` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.50s
+     Running `target/debug/lavapipe_demo`
+Screenshot saved to frame.raw

@@ -1,0 +1,138 @@
+#version 450
+#extension GL_ARB_gpu_shader_int64 : require
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(set=0, binding=0, std140) uniform Globals {
+    uint width;
+    uint height;
+    uint pitch_pixels;
+    uint tiles_x;
+
+    uint tiles_y;
+    uint num_tiles;
+    uint clear_color_bgra;
+    uint _pad0;
+
+    int cx2;
+    int cy2;
+    int focal_x_q16;
+    int focal_y_q16;
+
+    int sin_y_q15;
+    int cos_y_q15;
+    int cam_z_q16;
+    int near_q16;
+
+    int center_x_q16;
+    int center_y_q16;
+    int center_z_q16;
+    int scale_x_q16;
+    int scale_y_q16;
+    int scale_z_q16;
+} g;
+
+layout(set=0, binding=1, std430) readonly buffer IndexBuf { uint indices[]; };
+layout(set=0, binding=2, std430) readonly buffer VertScreenBuf { int vs[]; };
+
+struct TriSetup {
+    uint minx; uint maxx; uint miny; uint maxy;
+    int e0a; int e0b; int e0c;
+    int e1a; int e1b; int e1c;
+    int e2a; int e2b; int e2c;
+    int xref; int yref;
+    int zref_q16;
+    int dzdx_q16;
+    int dzdy_q16;
+    uint rgba;
+    uint _padA;
+    
+    int uref; int du_dx; int du_dy;
+    int vref; int dv_dx; int dv_dy;
+    uint _padB; uint _padC;
+    uint _padD; uint _padE; uint _padF; uint _padG;
+};
+
+layout(set=0, binding=3, std430) buffer TriSetupBuf { TriSetup ts[]; };
+layout(set=0, binding=4, std430) buffer TileCounts { uint tile_counts[]; };
+layout(set=0, binding=5, std430) buffer TileTriIds { uint tile_tri_ids[]; };
+
+const uint TILE_W = 8u;
+const uint TILE_H = 8u;
+const uint MAX_TRIS_PER_TILE = 256u;
+
+int edge2(int ax2,int ay2,int bx2,int by2,int px2,int py2) {
+    int dx = bx2 - ax2;
+    int dy = by2 - ay2;
+    return (px2 - ax2) * dy - (py2 - ay2) * dx;
+}
+
+void main() {
+    uint tid = gl_GlobalInvocationID.x;
+    uint tri_base = tid * 3u;
+    uint i0 = indices[tri_base + 0u];
+    uint i1 = indices[tri_base + 1u];
+    uint i2 = indices[tri_base + 2u];
+    uint b0 = i0 * 8u; uint b1 = i1 * 8u; uint b2 = i2 * 8u;
+    int x0 = vs[b0 + 0u], y0 = vs[b0 + 1u], z0 = vs[b0 + 2u], v0 = vs[b0 + 3u];
+    int u0 = vs[b0 + 4u], v_0 = vs[b0 + 5u];
+    
+    int x1 = vs[b1 + 0u], y1 = vs[b1 + 1u], z1 = vs[b1 + 2u], v1 = vs[b1 + 3u];
+    int u1 = vs[b1 + 4u], v_1 = vs[b1 + 5u];
+    
+    int x2 = vs[b2 + 0u], y2 = vs[b2 + 1u], z2 = vs[b2 + 2u], v2 = vs[b2 + 3u];
+    int u2 = vs[b2 + 4u], v_2 = vs[b2 + 5u];
+
+    if ((v0 & v1 & v2) == 0) { ts[tid].minx = 1u; ts[tid].maxx = 0u; return; }
+    int area = edge2(x0,y0,x1,y1,x2,y2);
+    if (area <= 0) { ts[tid].minx = 1u; ts[tid].maxx = 0u; return; }
+
+    int minx = min(x0, min(x1, x2)) >> 1;
+    int maxx = max(x0, max(x1, x2)) >> 1;
+    int miny = min(y0, min(y1, y2)) >> 1;
+    int maxy = max(y0, max(y1, y2)) >> 1;
+    minx = clamp(minx, 0, int(g.width) - 1); maxx = clamp(maxx, 0, int(g.width) - 1);
+    miny = clamp(miny, 0, int(g.height) - 1); maxy = clamp(maxy, 0, int(g.height) - 1);
+    if (minx > maxx || miny > maxy) { ts[tid].minx = 1u; ts[tid].maxx = 0u; return; }
+
+    TriSetup outt;
+    outt.minx = uint(minx); outt.maxx = uint(maxx); outt.miny = uint(miny); outt.maxy = uint(maxy);
+    outt.e0a = y1 - y0; outt.e0b = x0 - x1; outt.e0c = y0 * (x1 - x0) - x0 * (y1 - y0);
+    outt.e1a = y2 - y1; outt.e1b = x1 - x2; outt.e1c = y1 * (x2 - x1) - x1 * (y2 - y1);
+    outt.e2a = y0 - y2; outt.e2b = x2 - x0; outt.e2c = y2 * (x0 - x2) - x2 * (y0 - y2);
+
+    int X0 = x0 >> 1, Y0 = y0 >> 1, X1 = x1 >> 1, Y1 = y1 >> 1, X2 = x2 >> 1, Y2 = y2 >> 1;
+    int denom = (X0 - X2) * (Y1 - Y2) - (X1 - X2) * (Y0 - Y2);
+    if (denom == 0) { ts[tid].minx = 1u; ts[tid].maxx = 0u; return; }
+    int64_t z0d = int64_t(z0), z1d = int64_t(z1), z2d = int64_t(z2);
+    outt.xref = X2; outt.yref = Y2; outt.zref_q16 = z2;
+    outt.dzdx_q16 = int(((z0d - z2d) * int64_t(Y1 - Y2) - (z1d - z2d) * int64_t(Y0 - Y2)) / int64_t(denom));
+    outt.dzdy_q16 = int((int64_t(X0 - X2) * (z1d - z2d) - int64_t(X1 - X2) * (z0d - z2d)) / int64_t(denom));
+    outt.rgba = 0xFFCC88FFu; outt._padA = 0u;
+
+    // UV Interpolation
+    int64_t u0d = int64_t(u0), u1d = int64_t(u1), u2d = int64_t(u2);
+    int64_t v0d = int64_t(v_0), v1d = int64_t(v_1), v2d = int64_t(v_2);
+
+    outt.uref = u2;
+    outt.du_dx = int(((u0d - u2d) * int64_t(Y1 - Y2) - (u1d - u2d) * int64_t(Y0 - Y2)) / int64_t(denom));
+    outt.du_dy = int((int64_t(X0 - X2) * (u1d - u2d) - int64_t(X1 - X2) * (u0d - u2d)) / int64_t(denom));
+
+    outt.vref = v_2;
+    outt.dv_dx = int(((v0d - v2d) * int64_t(Y1 - Y2) - (v1d - v2d) * int64_t(Y0 - Y2)) / int64_t(denom));
+    outt.dv_dy = int((int64_t(X0 - X2) * (v1d - v2d) - int64_t(X1 - X2) * (v0d - v2d)) / int64_t(denom));
+    
+    outt._padB = 0u; outt._padC = 0u;
+
+    ts[tid] = outt;
+
+    uint tx0 = uint(minx) / TILE_W, tx1 = uint(maxx) / TILE_W;
+    uint ty0 = uint(miny) / TILE_H, ty1 = uint(maxy) / TILE_H;
+    for (uint ty = ty0; ty <= ty1; ++ty) {
+        for (uint tx = tx0; tx <= tx1; ++tx) {
+            uint tile = ty * g.tiles_x + tx;
+            uint idx = atomicAdd(tile_counts[tile], 1u);
+            if (idx < MAX_TRIS_PER_TILE) { tile_tri_ids[tile * MAX_TRIS_PER_TILE + idx] = tid; }
+        }
+    }
+}

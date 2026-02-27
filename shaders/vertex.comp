@@ -1,0 +1,155 @@
+#version 450
+#extension GL_ARB_gpu_shader_int64 : require
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(set=0, binding=0, std140) uniform Globals {
+    uint width;
+    uint height;
+    uint pitch_pixels;
+    uint tiles_x;
+
+    uint tiles_y;
+    uint num_tiles;
+    uint clear_color_bgra;
+    uint _pad0;
+
+    int cx2;
+    int cy2;
+    int focal_x_q16;
+    int focal_y_q16;
+
+    int sin_y_q15;
+    int cos_y_q15;
+    int cam_z_q16;
+    int near_q16;
+
+    int center_x_q16;
+    int center_y_q16;
+    int center_z_q16;
+    int scale_x_q16;
+    int scale_y_q16;
+    int scale_z_q16;
+} g;
+
+layout(set=0, binding=1, std430) readonly buffer VertBuf { uint vdata[]; };
+
+layout(set=0, binding=2, std430) buffer VertScreenBuf {
+    int sx2[];
+};
+
+int unpack_i16(uint packed, bool high) {
+    int v = high ? int(packed >> 16) : int(packed & 0xFFFFu);
+    v = (v << 16) >> 16;
+    return v;
+}
+
+void main() {
+
+    uint vid = gl_GlobalInvocationID.x;
+
+    uint i0 = vid * 4u;
+
+    
+
+    uint p0 = vdata[i0 + 0u]; // xy
+
+    uint p1 = vdata[i0 + 1u]; // z
+
+    uint p2 = vdata[i0 + 2u]; // uv
+
+    // p3 is pad
+
+
+
+    int lx = unpack_i16(p0, false);
+
+    int ly = unpack_i16(p0, true);
+
+    int lz = unpack_i16(p1, false);
+
+
+
+    // Decode quantized position: pos_q16 = center_q16 + (lx * scale_q16)
+
+    int64_t x_q16 = int64_t(g.center_x_q16) + int64_t(lx) * int64_t(g.scale_x_q16);
+
+    int64_t y_q16 = int64_t(g.center_y_q16) + int64_t(ly) * int64_t(g.scale_y_q16);
+
+    int64_t z_q16 = int64_t(g.center_z_q16) + int64_t(lz) * int64_t(g.scale_z_q16);
+
+
+
+    int64_t c = int64_t(g.cos_y_q15);
+
+    int64_t s = int64_t(g.sin_y_q15);
+
+
+
+    int64_t xr = (c * x_q16 + s * z_q16) >> 15;
+
+    int64_t zr = (-s * x_q16 + c * z_q16) >> 15;
+
+
+
+    int64_t zv = zr - int64_t(g.cam_z_q16);
+
+    int64_t xv = xr;
+
+    int64_t yv = y_q16;
+
+
+
+    int valid = (zv > int64_t(g.near_q16)) ? 1 : 0;
+
+    int out_sx2 = 0;
+
+    int out_sy2 = 0;
+
+    int out_zq16 = int(zv);
+
+
+
+    if (valid == 1) {
+
+        int64_t px_q16 = (xv * int64_t(g.focal_x_q16)) / zv;
+
+        int64_t py_q16 = (yv * int64_t(g.focal_y_q16)) / zv;
+
+
+
+        out_sx2 = g.cx2 + int(px_q16 >> 15);
+
+        out_sy2 = g.cy2 - int(py_q16 >> 15);
+
+    }
+
+
+
+    // Unpack UVs: u16, u16
+
+    int u_u16 = int(p2 & 0xFFFFu);
+
+    int v_u16 = int(p2 >> 16);
+
+
+
+    uint base = vid * 8u;
+
+    sx2[base + 0u] = out_sx2;
+
+    sx2[base + 1u] = out_sy2;
+
+    sx2[base + 2u] = out_zq16;
+
+    sx2[base + 3u] = valid;
+
+    sx2[base + 4u] = u_u16;
+
+    sx2[base + 5u] = v_u16;
+
+    sx2[base + 6u] = 0;
+
+    sx2[base + 7u] = 0;
+
+}

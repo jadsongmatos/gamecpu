@@ -1,0 +1,49 @@
+#version 450
+#extension GL_ARB_gpu_shader_int64 : require
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(set=0, binding=0, std140) uniform Globals {
+    uint width;
+    uint height;
+    uint pitch_pixels;
+    uint tiles_x;
+
+    uint tiles_y;
+    uint num_tiles;
+    uint clear_color_bgra;
+    uint _pad0;
+
+    int cx2;
+    int cy2;
+    int focal_x_q16;
+    int focal_y_q16;
+
+    int sin_y_q15;
+    int cos_y_q15;
+    int cam_z_q16;
+    int near_q16;
+
+    int center_x_q16;
+    int center_y_q16;
+    int center_z_q16;
+    int scale_x_q16;
+    int scale_y_q16;
+    int scale_z_q16;
+} g;
+
+layout(set=0, binding=1, std430) buffer ColorBuf { uint color[]; };
+layout(set=0, binding=2, std430) buffer DepthBuf { uint depth[]; };
+layout(set=0, binding=3, std430) buffer TileCounts { uint tile_counts[]; };
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    uint pixels = g.pitch_pixels * g.height;
+    if (gid < pixels) {
+        color[gid] = g.clear_color_bgra;
+        depth[gid] = 0xFFFFFFFFu;
+    }
+    if (gid < g.num_tiles) {
+        tile_counts[gid] = 0u;
+    }
+}
